@@ -475,6 +475,7 @@ new dummy_ret
 
 new g_planter
 new g_defuser
+new bool:g_bRoundResultCounted
 
 #define WEAPON_INFO_SIZE		1 + (MAX_NAME_LENGTH * 2)
 
@@ -595,18 +596,22 @@ public plugin_precache() {
 new bool:g_bMatchLive
 
 public gather_match_state_changed(GatherMatchState:iNewMatchState) {
-	const STATES_BITS = BIT(_:MATCH_ACTIVE_1ST)|BIT(_:MATCH_ACTIVE_2ST)|BIT(_:MATCH_OVERTIME)
+        const STATES_BITS = BIT(_:MATCH_ACTIVE_1ST)|BIT(_:MATCH_ACTIVE_2ST)|BIT(_:MATCH_OVERTIME)
 
 	if(STATES_BITS & BIT(_:iNewMatchState)) {
 		g_bMatchLive = true
 	}
-	else {
-		g_bMatchLive = false
-	}
+        else {
+                g_bMatchLive = false
+        }
+}
+
+stock bool:IsLive() {
+        return (g_bMatchLive && !pause_stats)
 }
 
 is_stats_paused() {
-	return (!g_bMatchLive || pause_stats)
+        return (!g_bMatchLive || pause_stats)
 }
 
 new g_fwdClientLoaded;
@@ -1606,11 +1611,23 @@ public EventHook_TextMsg(player)
 //
 Event_TWin()
 {
-	new players[MAX_PLAYERS],pnum
-	get_players(players,pnum)
+        if(!IsLive())
+        {
+                return
+        }
 
-	for(new i,player ; i < pnum ; i++)
-	{
+        if(g_bRoundResultCounted)
+        {
+                return
+        }
+
+        g_bRoundResultCounted = true
+
+        new players[MAX_PLAYERS],pnum
+        get_players(players,pnum)
+
+        for(new i,player ; i < pnum ; i++)
+        {
 		player = players[i]
 
 		// считаем статистику побед по командам
@@ -1626,8 +1643,20 @@ Event_TWin()
 //
 Event_CTWin()
 {
-	new players[MAX_PLAYERS],pnum
-	get_players(players,pnum)
+        if(!IsLive())
+        {
+                return
+        }
+
+        if(g_bRoundResultCounted)
+        {
+                return
+        }
+
+        g_bRoundResultCounted = true
+
+        new players[MAX_PLAYERS],pnum
+        get_players(players,pnum)
 
 	for(new i,player ; i < pnum ; i++)
 	{
@@ -2007,30 +2036,40 @@ public client_infochanged(id)
 */
 public LogEventHooK_RoundStart()
 {
-	// сбрасываем wrstats, vstats, astats в начале раунда
-	new players[32],pnum
-	get_players(players,pnum)
+        // сбрасываем wrstats, vstats, astats в начале раунда
+        g_bRoundResultCounted = false
 
-	for(new i,player ; i < pnum ; i++)
-	{
+        new players[32],pnum
+        get_players(players,pnum)
+
+        for(new i,player ; i < pnum ; i++)
+        {
 		player = players[i]
 
 		// определяем в какой команде игрок
 		switch(get_user_team(player))
 		{
-			// статистика сыгранных раундов по командам
-			case 1:
-			{
-				player_data[player][PLAYER_STATS3][STATS3_ROUNDT] ++
-				player_data[player][PLAYER_STATS3][STATS3_CURRENTTEAM] = 1
-			}
-			case 2:
-			{
-				player_data[player][PLAYER_STATS3][STATS3_ROUNDCT] ++
-				player_data[player][PLAYER_STATS3][STATS3_CURRENTTEAM] = 2
-			}
-		}
-	}
+                        // статистика сыгранных раундов по командам
+                        case 1:
+                        {
+                                player_data[player][PLAYER_STATS3][STATS3_CURRENTTEAM] = 1
+
+                                if(IsLive())
+                                {
+                                        player_data[player][PLAYER_STATS3][STATS3_ROUNDT] ++
+                                }
+                        }
+                        case 2:
+                        {
+                                player_data[player][PLAYER_STATS3][STATS3_CURRENTTEAM] = 2
+
+                                if(IsLive())
+                                {
+                                        player_data[player][PLAYER_STATS3][STATS3_ROUNDCT] ++
+                                }
+                        }
+                }
+        }
 
 
 }
